@@ -1,0 +1,124 @@
+
+service: imgs
+
+frameworkVersion: ">=1.1.0 <2.0.0"
+# app and org for use with dashboard.serverless.com
+app: quymbs-lambda-test
+org: Quymbee
+
+
+custom:
+  bucket: quymbs-test-bucket
+  table: quymbs-test-table
+
+provider:
+  name: aws
+  runtime: nodejs12.x
+  stage: dev
+  region: us-east-2
+  environment:
+    IMG_TABLE: ${self:custom.table}
+    BUCKET: ${self:custom.bucket}
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - dynamodb:Query
+        - dynamodb:Scan
+        - dynamodb:GetItem
+        - dynamodb:PutItem
+      Resource: "arns:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:custom.table}"
+    - Effect: Allow
+      Action:
+        - 's3:ListBucket'
+        - 's3:PutObject'
+        - 's3:GetObject'
+      Resource: "arns:aws:s3:::${self:custom.bucket/*"
+
+functions:
+  postImg:
+    handler: API/imgHandler.post
+    memorySize: 128
+    description: submit imgs
+    events:
+      - http:
+          path: imgs
+          method: post
+          cors: true
+  getImg:
+    handler: API/imgHandler.get
+    memorySize: 128
+    description: get all imgs
+    events:
+      - http:
+          path: imgs
+          method: get
+          cors: true
+  getMetadata:
+    handler: API/imgHandler.meta
+    memorySize: 128
+    description: get metadata
+    events:
+      - http:
+          path: imgs
+          method: get
+          cors: true
+
+resources:
+  Resources:
+    #create dynamoDB table
+    DynamoDbTable:
+      Type: AWS::DynamoDB::Table
+      DeletionPolicy: Retain
+      Properties:
+        TableName: ${self:provider.environment.IMG_TABLE}
+        AttributeDefinitions:
+          -
+            AttributeName: id
+            AttributeType: S
+        KeySchema:
+          -
+            AttributeName: id
+            KeyType: HASH
+     
+    #create Bucket
+    S3Bucket:
+      Type: AWS::S3::Bucket
+      Properties:
+        #Set the CORS policy
+        CorsConfiguration:
+          CorsRules:
+            -
+              AllowedOrigins:
+                - '*'
+              AllowedHeaders:
+                - '*'
+              AllowedMethods:
+                - GET
+                - PUT
+                - POST
+                - DELETE
+              MaxAge: 3000
+  Outputs:
+    #get Arn attribute we need for bucket
+    AttachmentsBucketArn:
+      Value:
+        Fn::GetAtt:
+          - S3Bucket
+          - Arn
+      Export:
+        Name: ${opt:stage, self:priver.stage}-ExtAttachmentsBucketArn
+    #get bucket name by using ref
+    AttachmentsBucketName:
+      Value:
+        Ref: S3Bucket
+      Export:
+        Name: ${opt:stage, self:priver.stage}-ExtAttachmentsBucket
+    #get Arn attribute we need for DynamoDbTable
+    DynamoDbTableArn:
+      Value:
+        Fn::GetAtt:
+          - DynamoDbTable
+          - Arn
+      Export:
+        Name: ${opt:stage, self:priver.stage}-ExtDynamoDbTableArn
+
