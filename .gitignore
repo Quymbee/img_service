@@ -9,3 +9,5 @@ jspm_packages
 .env
 
 cat.jpg
+
+.DS_Store
